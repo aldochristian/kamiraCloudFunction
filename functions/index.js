@@ -187,7 +187,10 @@ exports.createUser = functions.https.onCall((data, context) => {
 
 exports.writePointsFromCapture = functions.firestore.document('capture/{captureUid}')
   .onUpdate(async(change, context) =>{
-
+    /**
+     * Function for reviewe capture,
+     * Admin have capability to approve and logged point
+     */
     console.log('running writePointFromCapture');
     
     const newValue = change.after.data();
@@ -195,37 +198,37 @@ exports.writePointsFromCapture = functions.firestore.document('capture/{captureU
 
     const captureId = context.params.captureUid
     const userId = newValue.user;
-    const countBottle = newValue.countBottle;
+    const countBottle = newValue.counterBottle;
     const statusChange = newValue.status; // Status Review to approved
-    const pointAfterCount = countBottle * 100.0
+    const pointAfterCount = countBottle * 500;
     let FieldValue = require('firebase-admin').firestore.FieldValue;
 
     if(statusChange === 'approved'){
-      console.log('Your image has approved ', captureId);
       let data = {
         gaveBy: 'CaptureBottleBot',
         pointAmount: pointAfterCount,
         createdDate: FieldValue.serverTimestamp()
       };
-  
-      let setDoc = db.collection('users').doc(userId).collection('pointlog').doc(captureId).set(data);
-      let userRef = db.collection('users').doc(userId)
-  
+
+      db.collection('users').doc(userId).collection('pointlog').doc(captureId).set(data);
+      let userRef = db.collection('users').doc(userId);
+      
       let transactionPoint = db.runTransaction(t => {
-          return t.get(userRef)
-              .then(doc => {
-                let newPoints = doc.data().point + pointAfterCount;
-                t.update(userRef, {point: 400});
-                console.log('Point amount ', newPoints);
-                return transactionPoint;
-              });
-          }).then(result => {
-            console.log('Transaction success!');
-            return transactionPoint;
-          }).catch(err => {
-            console.log('Transaction failure:', err);
-          }); 
+        return t.get(userRef)
+            .then(doc => {
+              let newPoints = doc.data().point + pointAfterCount;
+              t.update(userRef, {point: newPoints});
+              return newPoints;
+            });
+        }).then(result => {
+          console.log('Transaction success!');
+          return ok;
+        }).catch(err => {
+          console.log('Transaction failure:', err);
+          throw error;
+        }); 
+
     }else{
-      return error
+      return error;
     }
 });
